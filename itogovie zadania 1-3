@@ -1,0 +1,91 @@
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(jsonlite)
+library(readr)
+library(sf)
+library(tidyr)
+library(tidyverse)
+
+greendb = read_csv ("~/Downloads/greendb.csv")
+
+#
+# 1
+# Построить карту средних высот Ели обыкновенной по районам
+
+map = st_read("~/Downloads/boundary-polygon-lvl8.geojson", 
+              options = "ENCODING=UTF-8")
+plot(map)
+
+sample_avg_heights = greendb %>% 
+  filter(species_ru == "Ель обыкновенная (европейская)", adm_region != "NA") %>% 
+  group_by(adm_region) %>% 
+  summarise(mean_height = mean(height_m, na.rm = TRUE)) %>% 
+  rename(NAME = adm_region)
+
+map = left_join(map, sample_avg_heights, by="NAME")
+
+ggplot() + geom_sf(data = map, aes(fill=sample_avg_heights)) + 
+  theme_foundation() + theme(legend.title=element_blank())
+
+# 
+# 2
+# Показать, что район произрастания значимо влияет на высоты произрастания Ели обыкновенной	
+
+exercise2_data = greendb %>% filter(species_ru == "Ель обыкновенная (европейская)", adm_region != "NA")
+model_height_region = lm(height_m ~ adm_region, exercise2_data)
+
+anova(model_height_region)
+
+
+# Analysis of Variance Table
+# Response: height_m
+#               Df Sum Sq Mean Sq F value    Pr(>F)    
+# adm_region    95 232708 2449.55  57.163 < 2.2e-16 ***
+# Residuals  14251 610691   42.85                      
+
+# P -> 0, район значимо влияет на высоты Ели обыкновенной
+
+
+
+
+#
+# 3
+# Посчитать регрессионную зависимость высоты от диаметра ствола 
+# для городской округ Троицк Ель обыкновенная
+
+exercise3_data = greendb %>% 
+  filter(species_ru == "Ель обыкновенная (европейская)",
+         adm_region == "городской округ Троицк") %>% 
+  select(height_m, d_trunk_m)
+
+model_trunk_height = lm(d_trunk_m ~ height_m, exercise3_data)
+
+summary(model_trunk_height)
+
+# Residuals:
+#   Min       1Q   Median       3Q      Max 
+# -0.33934 -0.04726 -0.01163  0.04781  0.60205 
+
+# Coefficients:
+#   Estimate Std. Error t value Pr(>|t|)    
+# (Intercept) 0.0261480  0.0050740   5.153 2.93e-07 ***
+#   height_m    0.0150695  0.0002943  51.210  < 2e-16 ***
+#   ---
+#   Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+# Residual standard error: 0.09095 on 1395 degrees of freedom
+# (77 пропущенных наблюдений удалены)
+# Multiple R-squared:  0.6528,	Adjusted R-squared:  0.6525 
+# F-statistic:  2623 on 1 and 1395 DF,  p-value: < 2.2e-16
+
+
+anova(model_trunk_height)
+
+# Analysis of Variance Table
+# Response: d_trunk_m
+#             Df Sum Sq Mean Sq F value    Pr(>F)    
+# height_m     1 21.694 21.6941  2622.5 < 2.2e-16 ***
+#   Residuals 1395 11.540  0.0083                      
+# ---
+#   Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
